@@ -1,8 +1,8 @@
-
 # Vessel
-> **Formerly Jarvis OS** — renamed to Vessel to distinguish it from the separate on-device voice assistant project (Jarvis-OS-V2). The old repository URL redirects here automatically.
 
- Vessel is a self-hostable personal AI operating system for running a private assistant that can remember, plan, route work across tools and models, and act through connected accounts and devices.
+> **Formerly Jarvis OS** — renamed to Vessel to distinguish it from the separate on-device voice assistant project (Jarvis-OS-V2). The assistant personality remains Jarvis; Vessel is the system it runs on. The old repository URL redirects here automatically.
+
+Vessel is a self-hostable personal AI operating system for running a private assistant that can remember, plan, route work across tools and models, and act through connected accounts and devices.
 
 It combines a mobile command center, dashboard surfaces, Express runtime, tool-calling agent harness, long-term memory, background jobs, approval gates, provider routing, and optional desktop/Android connectors into one system.
 
@@ -14,32 +14,33 @@ user intent -> surfaces/channels -> runtime routing -> context + memory
             -> deliverable/log/result
 ```
 
-The goal is useful autonomy that stays reviewable. Jarvis can work in the background, but high-risk actions still need explicit approval.
+The goal is useful autonomy that stays reviewable. Vessel can work in the background, but high-risk actions still need explicit approval.
 
 ## Screenshots
 
-These public screenshots are cropped from the current mobile/web app surface. They focus on the user-facing operating loop: review queued work, approve and inspect real long-term memories, package generated app workspaces, monitor provider health, connect accounts, and browse the knowledge system that Jarvis builds over time.
+These public screenshots are cropped from the current mobile/web app surface. They focus on the user-facing operating loop: review queued work, approve and inspect real long-term memories, package generated app workspaces, monitor provider health, connect accounts, and browse the knowledge system that Vessel builds over time.
+
 | Mission Control | Memory Review |
 |---|---|
-| <img src="docs/assets/screenshots/mobile-mission-control.png" alt="Jarvis Mission Control review queue" width="240"> | <img src="docs/assets/screenshots/mobile-memory-review.png" alt="Jarvis memory review queue with real stored memories" width="240"> |
+| <img src="docs/assets/screenshots/mobile-mission-control.png" alt="Vessel Mission Control review queue" width="240"> | <img src="docs/assets/screenshots/mobile-memory-review.png" alt="Vessel memory review queue with real stored memories" width="240"> |
 
 | Stored Memories | App Workspace |
 |---|---|
-| <img src="docs/assets/screenshots/mobile-stored-memories.png" alt="Jarvis stored coach memory list" width="240"> | <img src="docs/assets/screenshots/mobile-app-workspace.png" alt="Jarvis generated app workspace" width="220"> |
+| <img src="docs/assets/screenshots/mobile-stored-memories.png" alt="Vessel stored coach memory list" width="240"> | <img src="docs/assets/screenshots/mobile-app-workspace.png" alt="Vessel generated app workspace" width="220"> |
 
 | Static App Package | Provider Usage |
 |---|---|
-| <img src="docs/assets/screenshots/mobile-app-static-workspace.png" alt="Jarvis static app package workspace" width="240"> | <img src="docs/assets/screenshots/mobile-provider-usage.png" alt="Jarvis provider usage and health dashboard" width="240"> |
+| <img src="docs/assets/screenshots/mobile-app-static-workspace.png" alt="Vessel static app package workspace" width="240"> | <img src="docs/assets/screenshots/mobile-provider-usage.png" alt="Vessel provider usage and health dashboard" width="240"> |
 
 | Connected Accounts | Knowledge Vault |
 |---|---|
-| <img src="docs/assets/screenshots/mobile-connections.png" alt="Jarvis connected accounts settings" width="220"> | <img src="docs/assets/screenshots/mobile-knowledge-vault.png" alt="Jarvis Knowledge Vault index" width="240"> |
+| <img src="docs/assets/screenshots/mobile-connections.png" alt="Vessel connected accounts settings" width="220"> | <img src="docs/assets/screenshots/mobile-knowledge-vault.png" alt="Vessel Knowledge Vault index" width="240"> |
 
 | Wiki Index | Universal Conversation Search |
 |---|---|
-| <img src="docs/assets/screenshots/mobile-wiki-index-detail.png" alt="Jarvis wiki index page with redacted entity pages" width="220"> | <img src="docs/assets/screenshots/mobile-universal-conversation-search.png" alt="Jarvis universal conversation search requirements page" width="220"> |
+| <img src="docs/assets/screenshots/mobile-wiki-index-detail.png" alt="Vessel wiki index page with redacted entity pages" width="220"> | <img src="docs/assets/screenshots/mobile-universal-conversation-search.png" alt="Vessel universal conversation search requirements page" width="220"> |
 
-## What Jarvis Can Do
+## What Vessel Can Do
 
 - **Personal command center:** Expo mobile/web app plus dashboard surfaces for chat, Mission Control, settings, goals, inbox, memory review, job status, deliverables, and connector setup.
 - **Agent runtime:** Tool-calling harness with model routing, provider fallback, task-specific agents, quality checks, controlled background jobs, and visible deliverables.
@@ -65,7 +66,7 @@ These public screenshots are cropped from the current mobile/web app surface. Th
 | Provider routing | Implemented for OpenAI-compatible providers, Gemini, OpenRouter-style routing, and ChatGPT subscription connector paths. | Provider API keys or a working desktop/Codex OAuth connector path. | Provider routing tests listed in `CONTRIBUTING.md` |
 | Channels and external accounts | Implemented by adapter, but each channel is optional and requires its own credentials. | Only configure the channels you actually use. | Channel-specific smoke checks and scrubbed logs |
 | Desktop and Android connectors | Implemented, optional, and high-risk. | Explicit pairing, narrow file roots, device permissions, APK/connector install. | Connector tests listed in `CONTRIBUTING.md`; manual device checks for releases |
-| One-click self-hosting | Not yet one-click. Jarvis is self-hostable, but setup still requires explicit database, provider, auth, and optional channel configuration. | See `docs/self-hosting.md`. | Complete the local quickstart and run the checks above |
+| One-click self-hosting | Not yet one-click. Vessel is self-hostable, but setup still requires explicit database, provider, auth, and optional channel configuration. | See `docs/self-hosting.md`. | Complete the local quickstart and run the checks above |
 
 ## Architecture
 
@@ -113,8 +114,8 @@ docs/                Architecture, operations, deployment, and roadmap docs
 2. **Clone and configure**
 
    ```bash
-   git clone https://github.com/battlesbudz/jarvis-os.git
-   cd jarvis-os
+   git clone https://github.com/battlesbudz/vessel.git
+   cd vessel
    npm install
    cp .env.example .env
    ```
@@ -156,7 +157,7 @@ docs/                Architecture, operations, deployment, and roadmap docs
 
 ## Hosting
 
-Jarvis is normally hosted as:
+Vessel is normally hosted as:
 
 - **Express API/server** on Railway or another Node host
 - **PostgreSQL** as the durable database
@@ -177,11 +178,11 @@ See [`docs/self-hosting.md`](docs/self-hosting.md), [`docs/railway-setup.md`](do
 
 ## Compatibility Note
 
-Jarvis OS was renamed in stages from an earlier internal app identity. Some mobile compatibility identifiers, URL schemes, package IDs, and hosted-domain defaults may still use older values so existing APK installs, OAuth callbacks, and deep links do not break unexpectedly. Public-facing docs and display names should say Jarvis OS. See [`docs/public-compatibility.md`](docs/public-compatibility.md).
+Vessel was previously named Jarvis OS. Some mobile compatibility identifiers, URL schemes, package IDs, and hosted-domain defaults may still use older values so existing APK installs, OAuth callbacks, and deep links do not break unexpectedly. Public-facing docs and display names should say Vessel. See [`docs/public-compatibility.md`](docs/public-compatibility.md).
 
 ## Safety Model
 
-Jarvis is designed for real accounts and real devices, so high-risk actions must stay gated:
+Vessel is designed for real accounts and real devices, so high-risk actions must stay gated:
 
 - No automatic email sends, purchases, deploys, public posts, or destructive file operations without an approval path.
 - Desktop and Android operations require explicit connector pairing and permissions.
@@ -190,7 +191,7 @@ Jarvis is designed for real accounts and real devices, so high-risk actions must
 
 ## Project Status
 
-Jarvis OS is active software, not a polished one-click SaaS template. Many capabilities are implemented and used, but self-hosters should expect to configure providers, database state, OAuth apps, channel webhooks, and connector permissions.
+Vessel is active software, not a polished one-click SaaS template. Many capabilities are implemented and used, but self-hosters should expect to configure providers, database state, OAuth apps, channel webhooks, and connector permissions.
 
 The public `main` branch is the supported branch. See [`ROADMAP.md`](ROADMAP.md) for the public roadmap and [`JARVIS_ROADMAP.md`](JARVIS_ROADMAP.md) for the detailed technical roadmap.
 
@@ -200,10 +201,10 @@ Bug reports, documentation fixes, tests, and scoped capability improvements are 
 
 ## Acknowledgements & Inspirations
 
-Parts of Jarvis OS's memory and knowledge-management architecture are derived from and inspired by GBrain, an open-source project created by Garry Tan. Jarvis extends and adapts those concepts as part of a broader Memory OS architecture focused on personal AI, autonomous workflows, reviewable memory, and cross-device presence.
+Parts of Vessel's memory and knowledge-management architecture are derived from and inspired by GBrain, an open-source project created by Garry Tan. Vessel extends and adapts those concepts as part of a broader Memory OS architecture focused on personal AI, autonomous workflows, reviewable memory, and cross-device presence.
 
 See [`ACKNOWLEDGEMENTS.md`](ACKNOWLEDGEMENTS.md) for attribution details.
 
 ## License
 
-Jarvis OS is distributed under the MIT License. See [`LICENSE`](LICENSE).
+Vessel is distributed under the MIT License. See [`LICENSE`](LICENSE).
