@@ -125,6 +125,32 @@ class JarvisDaemonModule(
     }
 
     @ReactMethod
+    fun getEyevueDiagnostics(promise: Promise) {
+        val eyevue = EyevueGlassesService.status(reactApplicationContext)
+        val state = listOf(
+            "wake listener armed: ${WakeWordService.isExternalWakeArmed()}",
+            "raw BLE wake packets received: ${eyevue.wakePacketsReceived}",
+            "last raw BLE wake packet at: ${eyevue.lastWakePacketAt ?: "none"}",
+            "wake events bridged to Jarvis: ${eyevue.wakeEvents}",
+            "last bridged wake at: ${eyevue.lastWakeAt ?: "none"}",
+        ).joinToString("\n")
+        promise.resolve(
+            (state + "\n" + DaemonLog.getAll()
+                .filter { entry ->
+                    entry.contains("eyevue:") ||
+                        entry.contains("wake:") ||
+                        entry.contains("wearable_audio:")
+                }
+                .map { entry ->
+                    if (entry.startsWith("wake: detected ")) {
+                        entry.substringBefore(" in \"") + " in \"[redacted]\""
+                    } else entry
+                }
+                .joinToString("\n")).trim(),
+        )
+    }
+
+    @ReactMethod
     fun enable(serverUrl: String, bootstrapToken: String, promise: Promise) {
         if (serverUrl.isBlank()) {
             promise.reject("E_JARVIS_DAEMON_SERVER_URL", "Server URL is required.")
@@ -686,6 +712,8 @@ class JarvisDaemonModule(
         map.putString("eyevueLastError", eyevue.lastError)
         map.putInt("eyevueWakeEvents", eyevue.wakeEvents.toInt())
         map.putDouble("eyevueLastWakeAt", eyevue.lastWakeAt?.toDouble() ?: 0.0)
+        map.putInt("eyevueWakePacketsReceived", eyevue.wakePacketsReceived.toInt())
+        map.putDouble("eyevueLastWakePacketAt", eyevue.lastWakePacketAt?.toDouble() ?: 0.0)
         map.putString("eyevueWakeBridge", "ble_command_notify")
         map.putBoolean(
             "eyevuePermissionGranted",

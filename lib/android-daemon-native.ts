@@ -32,6 +32,8 @@ export type AndroidDaemonStatus = {
   eyevueLastError?: string | null;
   eyevuePermissionGranted?: boolean;
   eyevueWakeEvents?: number;
+  eyevueWakePacketsReceived?: number;
+  eyevueLastWakePacketAt?: number | null;
   eyevueLastWakeAt?: number | null;
   eyevueWakeBridge?: string | null;
 };
@@ -208,6 +210,7 @@ const NativeJarvisDaemon = NativeModules.JarvisDaemonModule as
       requestMicrophonePermission(): Promise<void>;
       requestEyevuePermissions?(): Promise<void>;
       armEyevueWake?(): Promise<void>;
+      getEyevueDiagnostics?(): Promise<string>;
       requestScreenRecordPermission(): Promise<void>;
       getLocalGemmaStatus?(model: string): Promise<string | Record<string, unknown>>;
       validateLocalGemmaModel?(model: string): Promise<string | Record<string, unknown>>;
@@ -287,6 +290,13 @@ export async function smokeTestAndroidLocalGemmaModel(model: string, options: An
 export async function getAndroidEyevueStatus(): Promise<AndroidEyevueStatus | null> {
   if (Platform.OS !== "android" || !NativeJarvisDaemon?.getEyevueStatus) return null;
   return parseNativeJsonResult(await NativeJarvisDaemon.getEyevueStatus()) as AndroidEyevueStatus | null;
+}
+
+export async function getAndroidEyevueDiagnostics(): Promise<string> {
+  if (Platform.OS !== "android" || !NativeJarvisDaemon?.getEyevueDiagnostics) {
+    throw new Error("EYE VUE diagnostics are unavailable in this APK.");
+  }
+  return NativeJarvisDaemon.getEyevueDiagnostics();
 }
 
 export async function scanAndroidEyevueDevices(): Promise<AndroidEyevueDevice[]> {

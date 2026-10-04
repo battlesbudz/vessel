@@ -100,6 +100,8 @@ class WakeWordService : Service() {
 
         fun disarmExternal(): Boolean = instance?.handleDisarmExternal() ?: false
 
+        fun isExternalWakeArmed(): Boolean = instance?.externalWakeArmed == true
+
         fun pauseForResponse() {
             instance?.handlePauseForResponse()
         }

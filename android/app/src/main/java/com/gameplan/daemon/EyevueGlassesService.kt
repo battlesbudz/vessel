@@ -47,6 +47,8 @@ data class EyevueSnapshot(
     val lastError: String?,
     val wakeEvents: Long,
     val lastWakeAt: Long?,
+    val wakePacketsReceived: Long,
+    val lastWakePacketAt: Long?,
 ) {
     fun json() = JSONObject()
         .put("available", true)
@@ -62,6 +64,8 @@ data class EyevueSnapshot(
         .put("wakeBridge", "ble_command_notify")
         .put("wakeEvents", wakeEvents)
         .put("lastWakeAt", lastWakeAt ?: JSONObject.NULL)
+        .put("wakePacketsReceived", wakePacketsReceived)
+        .put("lastWakePacketAt", lastWakePacketAt ?: JSONObject.NULL)
         .put("nativeStoragePreserved", true)
 }
 
@@ -89,7 +93,7 @@ class EyevueGlassesService : Service() {
         private const val PHOTO_DELETE_MAX_ATTEMPTS = 3
 
         @Volatile private var instance: EyevueGlassesService? = null
-        @Volatile private var snapshot = EyevueSnapshot(false, false, null, null, null, null, null, null, 0, null)
+        @Volatile private var snapshot = EyevueSnapshot(false, false, null, null, null, null, null, null, 0, null, 0, null)
 
         fun status(context: Context): EyevueSnapshot {
             val prefs = context.getSharedPreferences(PREFS, MODE_PRIVATE)
@@ -235,7 +239,12 @@ class EyevueGlassesService : Service() {
                     // Make selection changes atomic even while the prior GATT is still connecting.
                     closeConnection()
                     connecting.set(false)
-                    snapshot = snapshot.copy(wakeEvents = 0, lastWakeAt = null)
+                    snapshot = snapshot.copy(
+                        wakeEvents = 0,
+                        lastWakeAt = null,
+                        wakePacketsReceived = 0,
+                        lastWakePacketAt = null,
+                    )
                 }
                 preferences.edit()
                     .putBoolean(PREF_ENABLED, true)
@@ -425,7 +434,13 @@ class EyevueGlassesService : Service() {
 
     private fun handleFrame(frame: EyevueFrame) {
         when (frame.commandId) {
-            EyevueProtocol.CMD_WAKE_START -> beginWakeHandoff()
+            EyevueProtocol.CMD_WAKE_START -> {
+                snapshot = snapshot.copy(
+                    wakePacketsReceived = snapshot.wakePacketsReceived + 1,
+                    lastWakePacketAt = System.currentTimeMillis(),
+                )
+                beginWakeHandoff()
+            }
             EyevueProtocol.CMD_BATTERY, 83 -> {
                 val percent = if (frame.commandId == 83) frame.payload.getOrNull(1)?.toInt()?.and(0xff)
                     else frame.payload.takeIf { it.size >= 2 }?.let { ((it[0].toInt() and 0x0f) * 10) + (it[1].toInt() and 0x0f) }

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
+import * as Clipboard from "expo-clipboard";
 import {
   ActivityIndicator,
   AppState,
@@ -21,11 +22,12 @@ import {
   type AndroidDaemonStatus,
   type AndroidEyevueDevice,
   getAndroidNativeSpeechStatus,
+  getAndroidEyevueDiagnostics,
   type AndroidNativeSpeechStatus,
 } from "@/lib/android-daemon-native";
 import { deriveEyeVueVoiceReadiness } from "@/lib/eyevue-setup";
 
-type BusyAction = "permission" | "microphone" | "scan" | "connect" | "assistant" | null;
+type BusyAction = "permission" | "microphone" | "scan" | "connect" | "assistant" | "diagnostics" | null;
 
 export function EyevueConnectCard() {
   const [status, setStatus] = useState<AndroidDaemonStatus | null>(null);
@@ -123,6 +125,22 @@ export function EyevueConnectCard() {
     eyevueDeviceName: status?.eyevueDeviceName,
   });
   const voiceReady = eyeVueVoiceReadiness.ready;
+  const copyDiagnostics = useCallback(() => run("diagnostics", async () => {
+    const log = await getAndroidEyevueDiagnostics();
+    const payload = [
+      "EYE VUE diagnostics",
+      `Captured: ${new Date().toISOString()}`,
+      `Connection: ${status?.eyevueConnected === true ? "connected" : "not connected"}`,
+      `Device: ${status?.eyevueDeviceName || "unknown"}`,
+      `Microphone permission: ${speechStatus?.microphonePermissionGranted === true ? "granted" : "not granted"}`,
+      `Speech recognition: ${speechStatus?.speechRecognitionAvailable === true ? "available" : "unavailable"}`,
+      `Wearable audio: ${voiceReady ? "ready" : "not ready"}`,
+      "",
+      log || "No EYE VUE or wake entries have been recorded yet.",
+    ].join("\n");
+    await Clipboard.setStringAsync(payload);
+  }), [run, speechStatus?.microphonePermissionGranted, speechStatus?.speechRecognitionAvailable, status?.eyevueConnected, status?.eyevueDeviceName, voiceReady]);
+
   const fullyReady = connected && microphoneReady && recognizerReady && voiceReady && wakeEvents > 0;
   const title = connected ? (status?.eyevueDeviceName || "Smart Glasses") : "Smart Glasses";
   const detail = fullyReady
@@ -206,6 +224,8 @@ export function EyevueConnectCard() {
               <Text style={styles.stepDetail}>This helps with Android’s normal assistant gesture, but it is not required for EYE VUE’s BLE wake event.</Text>
               {status?.assistantActive !== true && <ActionButton label="Open Android assistant settings" busy={busy === "assistant"} onPress={chooseAssistant} />}
             </SetupStep>
+
+            <ActionButton label="Copy EYE VUE diagnostics" busy={busy === "diagnostics"} onPress={copyDiagnostics} />
 
             {error && (
               <View style={styles.errorCard}>
