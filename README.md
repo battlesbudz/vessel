@@ -1,10 +1,12 @@
-# Jarvis OS
 
-Jarvis OS is a self-hostable personal AI operating system for running a private assistant that can remember, plan, route work across tools and models, and act through connected accounts and devices.
+# Vessel
+> **Formerly Jarvis OS** — renamed to Vessel to distinguish it from the separate on-device voice assistant project (Jarvis-OS-V2). The old repository URL redirects here automatically.
+
+ Vessel is a self-hostable personal AI operating system for running a private assistant that can remember, plan, route work across tools and models, and act through connected accounts and devices.
 
 It combines a mobile command center, dashboard surfaces, Express runtime, tool-calling agent harness, long-term memory, background jobs, approval gates, provider routing, and optional desktop/Android connectors into one system.
 
-Jarvis is not a single chatbot wrapper. It is built around an observable operating loop:
+Vessel is not a single chatbot wrapper. It is built around an observable operating loop:
 
 ```text
 user intent -> surfaces/channels -> runtime routing -> context + memory
@@ -17,7 +19,6 @@ The goal is useful autonomy that stays reviewable. Jarvis can work in the backgr
 ## Screenshots
 
 These public screenshots are cropped from the current mobile/web app surface. They focus on the user-facing operating loop: review queued work, approve and inspect real long-term memories, package generated app workspaces, monitor provider health, connect accounts, and browse the knowledge system that Jarvis builds over time.
-
 | Mission Control | Memory Review |
 |---|---|
 | <img src="docs/assets/screenshots/mobile-mission-control.png" alt="Jarvis Mission Control review queue" width="240"> | <img src="docs/assets/screenshots/mobile-memory-review.png" alt="Jarvis memory review queue with real stored memories" width="240"> |
