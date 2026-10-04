@@ -69,6 +69,7 @@ import { sendEmailTool } from "./sendEmail";
 import { fetchEmailsTool } from "./fetchEmails";
 import { connectChannelTool } from "./connectChannel";
 import { startProjectTool } from "./startProject";
+import { manageProjectTool } from "./manageProject";
 import { discordPostTool } from "./discordPost";
 import { discordCreateChannelTool } from "./discordCreateChannel";
 import { discordRequestConfirmTool } from "./discordRequestConfirm";
@@ -354,6 +355,7 @@ export {
   xSearchTool,
   queueBackgroundJobTool,
   startProjectTool,
+  manageProjectTool,
   setupContentPipelineTool,
   setupDiscordWorkspaceTool,
   memorySearchTool,

@@ -16,6 +16,7 @@ import {
 import type { ComponentProps } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
+import * as WebBrowser from "expo-web-browser";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useIsFocused } from "@react-navigation/native";
 import { useColors } from "@/hooks/useColors";
@@ -45,6 +46,8 @@ interface Project {
   workspaceDir?: string | null;
   appFramework: string | null;
   lastSessionSummary: string | null;
+  activeJobStatus: string | null;
+  activeJobError: string | null;
   githubRepoUrl: string | null;
   createdAt: string;
   updatedAt: string;
@@ -60,7 +63,7 @@ interface ProjectDetail {
 }
 
 type ProjectKind = "app" | "general";
-type ProjectFramework = "nextjs" | "react-vite" | "node-express" | "custom";
+type ProjectFramework = "nextjs" | "react-vite" | "node-express" | "android-kotlin" | "custom";
 
 interface ProjectFile {
   path: string;
@@ -73,6 +76,7 @@ interface ProjectFile {
 interface ProjectFilesResponse {
   workspaceDir: string | null;
   files: ProjectFile[];
+  launchable: boolean;
 }
 
 interface ProjectFileContent {
@@ -90,6 +94,13 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: keyof 
   paused: { label: "Paused", color: "#6B7280", icon: "pause-circle-outline" },
   complete: { label: "Complete", color: "#10B981", icon: "checkmark-circle-outline" },
   failed: { label: "Failed", color: "#EF4444", icon: "close-circle-outline" },
+};
+
+const JOB_STATUS_CONFIG: Record<string, { label: string; color: string; icon: keyof typeof Ionicons.glyphMap }> = {
+  queued: { label: "Worker queued", color: "#F59E0B", icon: "hourglass-outline" },
+  running: { label: "Worker running", color: "#10B981", icon: "play" },
+  needs_attention: { label: "Needs attention", color: "#EF4444", icon: "alert-circle-outline" },
+  resource_paused: { label: "Worker paused", color: "#6B7280", icon: "pause-circle-outline" },
 };
 
 function formatSessionSummary(summary: string | null | undefined, fallback: string): string {
@@ -176,6 +187,7 @@ function ProgressBar({ completed, total, color }: { completed: number; total: nu
 function ProjectCard({ project, onPress }: { project: Project; onPress: () => void }) {
   const colors = useColors();
   const cfg = STATUS_CONFIG[project.status] ?? STATUS_CONFIG.draft;
+  const jobCfg = project.activeJobStatus ? JOB_STATUS_CONFIG[project.activeJobStatus] : null;
   const plan = project.plan ?? [];
   const completed = plan.filter((s) => s.status === "complete").length;
   const total = plan.length;
@@ -202,6 +214,12 @@ function ProjectCard({ project, onPress }: { project: Project; onPress: () => vo
             <Text style={styles.autoText}>Auto</Text>
           </View>
         )}
+        {jobCfg && (
+          <View style={[styles.autoBadge, { backgroundColor: jobCfg.color + "22" }]}>
+            <Ionicons name={jobCfg.icon} size={12} color={jobCfg.color} />
+            <Text style={[styles.autoText, { color: jobCfg.color }]}>{jobCfg.label}</Text>
+          </View>
+        )}
         {project.githubRepoUrl && project.status === "complete" && (
           <TouchableOpacity
             style={styles.githubIconBtn}
@@ -224,6 +242,12 @@ function ProjectCard({ project, onPress }: { project: Project; onPress: () => vo
       {project.goal && (
         <Text style={[styles.cardGoal, { color: colors.textSecondary }]} numberOfLines={2}>
           {project.goal}
+        </Text>
+      )}
+
+      {project.activeJobError && (project.activeJobStatus === "needs_attention" || project.activeJobStatus === "resource_paused") && (
+        <Text style={[styles.cardGoal, { color: jobCfg?.color ?? colors.textSecondary }]} numberOfLines={2}>
+          {project.activeJobError}
         </Text>
       )}
 
@@ -394,6 +418,7 @@ function NewProjectModal({ visible, onClose, onCreated }: {
                   ["nextjs", "Next.js"],
                   ["react-vite", "React/Vite"],
                   ["node-express", "Node API"],
+                  ["android-kotlin", "Android"],
                   ["custom", "Custom"],
                 ] as const).map(([value, label]) => (
                   <TouchableOpacity
@@ -580,6 +605,7 @@ function AppWorkspaceSection({ project }: { project: Project }) {
   const colors = useColors();
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [launching, setLaunching] = useState(false);
   const filesQuery = useProjectFiles(project.id, !!project.appFramework);
   const contentQuery = useProjectFileContent(project.id, selectedFile);
   const files = filesQuery.data?.files ?? [];
@@ -603,25 +629,55 @@ function AppWorkspaceSection({ project }: { project: Project }) {
     }
   }, [project.id]);
 
+  const handleLaunch = useCallback(async () => {
+    setLaunching(true);
+    try {
+      const response = await apiRequest("GET", `/api/projects/${project.id}/launch-url`);
+      const data = await response.json() as { launchUrl?: string };
+      if (!data.launchUrl) throw new Error("Jarvis did not return a launch URL.");
+      await WebBrowser.openBrowserAsync(data.launchUrl, {
+        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+        controlsColor: "#4D7CFE",
+      });
+    } catch (err) {
+      Alert.alert("App unavailable", err instanceof Error ? err.message : "This project is not installable inside Jarvis.");
+    } finally {
+      setLaunching(false);
+    }
+  }, [project.id]);
+
   return (
     <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
       <View style={styles.workspaceHeader}>
         <View style={styles.workspaceTitleBlock}>
           <Text style={[styles.sectionTitle, { color: colors.text, paddingBottom: 2 }]}>App Workspace</Text>
           <Text style={[styles.workspaceMeta, { color: colors.textTertiary }]}>
-            {project.appFramework} {fileCount > 0 ? `- ${fileCount} files` : "- waiting for scaffold"}
+            {project.appFramework} {fileCount > 0 ? `- ${fileCount} files` : "- preparing files"}
           </Text>
         </View>
-        <TouchableOpacity
-          style={[styles.actionBtn, { backgroundColor: project.status === "complete" ? "#10B98122" : "#6B728022", opacity: downloading ? 0.6 : 1 }]}
-          onPress={handleDownload}
-          disabled={downloading}
-        >
-          <Ionicons name="download-outline" size={14} color={project.status === "complete" ? "#10B981" : colors.textSecondary} />
-          <Text style={[styles.actionBtnText, { color: project.status === "complete" ? "#10B981" : colors.textSecondary }]}>
-            {downloading ? "Opening..." : "Zip"}
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.actionRow}>
+          {project.status === "complete" && filesQuery.data?.launchable && (
+            <TouchableOpacity
+              style={[styles.actionBtn, { backgroundColor: "#4D7CFE22", opacity: launching ? 0.6 : 1 }]}
+              onPress={handleLaunch}
+              disabled={launching}
+              testID="launch-jarvis-app-button"
+            >
+              <Ionicons name="play" size={14} color="#4D7CFE" />
+              <Text style={[styles.actionBtnText, { color: "#4D7CFE" }]}>{launching ? "Launching..." : "Open in Jarvis"}</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            style={[styles.actionBtn, { backgroundColor: project.status === "complete" ? "#10B98122" : "#6B728022", opacity: downloading ? 0.6 : 1 }]}
+            onPress={handleDownload}
+            disabled={downloading}
+          >
+            <Ionicons name="download-outline" size={14} color={project.status === "complete" ? "#10B981" : colors.textSecondary} />
+            <Text style={[styles.actionBtnText, { color: project.status === "complete" ? "#10B981" : colors.textSecondary }]}>
+              {downloading ? "Opening..." : "Zip"}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {!!filesQuery.data?.workspaceDir && (
@@ -636,7 +692,7 @@ function AppWorkspaceSection({ project }: { project: Project }) {
 
       {!filesQuery.isLoading && files.length === 0 && (
         <Text style={[styles.workspaceEmpty, { color: colors.textTertiary }]}>
-          Files will show here after Jarvis scaffolds the project.
+          Files will appear here as Jarvis builds the project.
         </Text>
       )}
 

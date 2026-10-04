@@ -2153,6 +2153,48 @@ assertRoute(
   ["coaching"],
   ["start_project"],
 );
+{
+  const plan = classifyToolAwareRoute("Build me a small Android calculator app");
+  assert(plan.intents.includes("project"), "Android app creation: routes as a project");
+  assert(plan.priorityToolNames.includes("start_project"), "Android app creation: prioritizes start_project");
+  assert(!plan.priorityToolNames.includes("build_feature"), "Android app creation: does not self-edit Jarvis");
+  assert(plan.blockedToolNames.includes("build_feature"), "Android app creation: blocks the Jarvis self-edit tool");
+}
+for (const request of [
+  "build a budgeting app",
+  "create a fitness tracker app",
+  "build me a native Android app",
+]) {
+  const plan = classifyToolAwareRoute(request);
+  assert(plan.priorityToolNames.includes("start_project"), `Standalone app creation: '${request}' prioritizes start_project`);
+}
+for (const request of [
+  "create a mobile app icon",
+  "create a logo for my mobile app",
+  "create a feature for my web app",
+  "create a new screen in my Android app",
+  "make changes to my web app",
+  "create mobile app icons",
+]) {
+  const plan = classifyToolAwareRoute(request);
+  assert(!plan.priorityToolNames.includes("start_project"), `App-adjacent request: '${request}' does not prioritize start_project`);
+}
+for (const request of [
+  "How goes the calculator app?",
+  "Work on that calculator app until completion",
+  "It's in the project",
+  "Can you access the project now?",
+  "Launch my Pong game inside Jarvis",
+]) {
+  const plan = classifyToolAwareRoute(request);
+  assert(plan.priorityToolNames.includes("manage_project"), `Existing project: '${request}' prioritizes manage_project`);
+  assert(plan.blockedToolNames.includes("start_project"), `Existing project: '${request}' does not create a duplicate project`);
+}
+{
+  const plan = classifyToolAwareRoute("Build me a small Pong game I can play against Jarvis");
+  assert(plan.priorityToolNames.includes("start_project"), "Interactive Pong game: creates an installable project");
+  assert(plan.blockedToolNames.includes("build_feature"), "Interactive Pong game: does not modify Jarvis source");
+}
 assertRoute(
   "fix your calendar routing code",
   "code",

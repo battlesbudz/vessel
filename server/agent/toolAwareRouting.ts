@@ -333,6 +333,27 @@ function unique<T>(values: T[]): T[] {
   return Array.from(new Set(values));
 }
 
+function isStandaloneAppCreationRequest(query: string): boolean {
+  const genericAppRequest = /\b(?:build|create|make|start|develop)\b\s+(?:(?:me|us)\s+)?(?:(?:a|an|the|my|our|new)\s+)?(?:(?!(?:features?|screens?|pages?|components?|routes?|endpoints?|fix(?:es)?|changes?|updates?|icons?|logos?|assets?|inside|in|for|on|of|to)\b)[\w-]+\s+){0,6}app\b(?!['’]s\b|\s+(?:features?|screens?|pages?|components?|routes?|endpoints?|fix(?:es)?|changes?|updates?|icons?|logos?|assets?)\b)/i;
+  return (
+    genericAppRequest.test(query) ||
+    /\b(?:build|create|make|start|develop)\b[\s\S]{0,100}\bgame\b(?!\s+plan)/i.test(query)
+  );
+}
+
+function isExistingProjectRequest(query: string): boolean {
+  return (
+    /\b(?:how(?:'s|\s+is)|what(?:'s|\s+is))\b[\s\S]{0,60}\b(?:project|app)\b/i.test(query) ||
+    /\b(?:status|progress)\b[\s\S]{0,40}\b(?:project|app)\b/i.test(query) ||
+    /\b(?:continue|resume|finish|complete|work\s+on|keep\s+working\s+on)\b[\s\S]{0,80}\b(?:project|app)\b/i.test(query) ||
+    /\b(?:it(?:'s|\s+is)|that(?:'s|\s+is))\s+in\s+(?:the|a|my)\s+project\b/i.test(query) ||
+    /\b(?:access|inspect|open|read)\b[\s\S]{0,50}\bproject(?:\s+files?|\s+workspace)?\b/i.test(query)
+    || /\bhow\s+goes\b[\s\S]{0,60}\b(?:project|app)\b/i.test(query)
+    || /^\s*(?:an?\s+)?(?:android|iphone|ios|web)\s+app\s*$/i.test(query)
+    || /\b(?:open|launch|play)\b[\s\S]{0,80}\b(?:inside|in)\s+jarvis\b/i.test(query)
+  );
+}
+
 function isPrivateCalendarEventQuery(query: string): boolean {
   return (
     /\b(?:my|our)\s+(?:[\w.-]+\s+){0,2}calendar\b/i.test(query) ||
@@ -380,6 +401,36 @@ export function classifyToolAwareRoute(text: string): ToolAwareRoutePlan {
   const query = text.trim().replace(/[\u2018\u2019]/g, "'");
   if (!query) return EMPTY_PLAN;
   const ontology = classifyActionOntology(query);
+  if (isStandaloneAppCreationRequest(query)) {
+    return {
+      intents: ["project"],
+      capabilityIds: ["coaching"],
+      toolGroups: ["coaching"],
+      priorityToolNames: ["start_project"],
+      blockedToolNames: ["build_feature", "delegate_to_codex", "propose_code_change"],
+      guidance: "Create a persistent installable Jarvis mini-app with start_project. This request is for a separate user application, not a change to Jarvis's own source. Use framework='android-kotlin' for Android apps and a web framework for games or embedded interactive experiences.",
+      shouldPreferTool: true,
+      actionType: ontology.actionType,
+      actor: ontology.actor,
+      approvalRequired: false,
+      actionReason: "The user asked Jarvis to create a standalone application project.",
+    };
+  }
+  if (isExistingProjectRequest(query)) {
+    return {
+      intents: ["project"],
+      capabilityIds: ["coaching"],
+      toolGroups: ["coaching"],
+      priorityToolNames: ["manage_project"],
+      blockedToolNames: ["build_feature", "delegate_to_codex", "start_project"],
+      guidance: "Use manage_project to inspect or continue the existing persistent project. Never ask the user to enable workspace access.",
+      shouldPreferTool: true,
+      actionType: ontology.actionType,
+      actor: ontology.actor,
+      approvalRequired: false,
+      actionReason: "The user referenced an existing Jarvis project.",
+    };
+  }
   if (isConversationInspectionQuestion(query) && ontology.actionType === "unknown") {
     return {
       ...EMPTY_PLAN,

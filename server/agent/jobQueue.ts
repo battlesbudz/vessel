@@ -1084,8 +1084,12 @@ async function completeJob(
 async function processJob(job: typeof schema.agentJobs.$inferSelect): Promise<void> {
   console.log(`[JobQueue] running job ${job.id} type=${job.agentType} user=${job.userId}`);
 
+  const jobAbortController = new AbortController();
   const watchdog = setTimeout(() => {
-    console.warn(`[JobQueue] job ${job.id} exceeded ${MAX_JOB_DURATION_MS}ms (still running)`);
+    console.warn(`[JobQueue] job ${job.id} exceeded ${MAX_JOB_DURATION_MS}ms`);
+    if (job.agentType === "app_project") {
+      jobAbortController.abort(new Error(`Project worker timed out after ${MAX_JOB_DURATION_MS}ms`));
+    }
   }, MAX_JOB_DURATION_MS);
 
   let latestJobInput = jobInputOf(job);
@@ -1579,14 +1583,19 @@ async function processJob(job: typeof schema.agentJobs.$inferSelect): Promise<vo
 
       console.log(`[JobQueue] app_project start: project=${projectId}${userAnswer ? " (with user answer)" : ""}`);
       const { runAppProjectSession } = await import("./appProjectRunner");
-      const sessionResult = await runAppProjectSession(projectId, 1, userAnswer);
+      const sessionResult = await runAppProjectSession(projectId, 1, userAnswer, jobAbortController.signal);
 
       if (sessionResult.status === "complete") {
         const { packageAndDeliverApp } = await import("./appDelivery");
         try {
-          await packageAndDeliverApp(projectId, job.userId, originChannel);
+          await packageAndDeliverApp(projectId, job.userId, originChannel, jobAbortController.signal);
         } catch (deliveryErr) {
           console.error(`[JobQueue] app_project delivery failed for ${projectId}:`, deliveryErr);
+          await db
+            .update(schema.jarvisProjects)
+            .set({ status: "building", updatedAt: new Date() })
+            .where(eq(schema.jarvisProjects.id, projectId));
+          throw deliveryErr;
         }
       }
 
@@ -3188,6 +3197,15 @@ Keep the plan minimal: 2-5 steps for most features. Each step is one focused cod
     } else {
       console.log(`[JobQueue] permanently failing job ${job.id} after ${MAX_RETRIES + 1} total attempts`);
       await failJob(job.id, msg, job.userId);
+      if (job.agentType === "app_project" || job.agentType === "project_session") {
+        const projectId = typeof jobInput.projectId === "string" ? jobInput.projectId : "";
+        if (projectId) {
+          await db
+            .update(schema.jarvisProjects)
+            .set({ status: "failed", nextRunAt: null, updatedAt: new Date() })
+            .where(eq(schema.jarvisProjects.id, projectId));
+        }
+      }
       // Record as a capability gap if the failure is not transient (auth/network).
       recordJobCapabilityGap(job, msg);
       // Fail the workflow step if applicable.

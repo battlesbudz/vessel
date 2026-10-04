@@ -5,7 +5,7 @@ import { configureDatabaseEnvForTests, loadEnvFiles } from "./test-env.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, "..");
-const tsxCli = path.join(projectRoot, "node_modules", "tsx", "dist", "cli.mjs");
+const tsxArgs = (file) => ["--import", "tsx", file];
 
 loadEnvFiles(projectRoot);
 
@@ -44,6 +44,8 @@ const tests = [
   { file: "server/discord/__tests__/primeRuntimeChat.test.ts" },
   { file: "server/agent/__tests__/jarvisCoreRuntime.assert.ts" },
   { file: "server/agent/__tests__/appProjectRunner.test.ts" },
+  { file: "server/agent/__tests__/androidCalculatorProject.test.ts" },
+  { file: "server/agent/__tests__/projectAppRuntime.test.ts" },
   { file: "server/agent/__tests__/topLevelApprovalContinuation.test.ts" },
   { file: "server/agent/__tests__/reviewLoop.test.ts" },
   { file: "server/agent/__tests__/goalTreeEditor.test.ts" },
@@ -235,7 +237,7 @@ const hasDatabase = configureDatabaseEnvForTests();
 let skipped = 0;
 
 if (hasDatabase) {
-  const prepareResult = spawnSync(process.execPath, [tsxCli, "scripts/prepare-test-database.ts"], {
+  const prepareResult = spawnSync(process.execPath, tsxArgs("scripts/prepare-test-database.ts"), {
     cwd: projectRoot,
     env: process.env,
     stdio: "inherit",
@@ -257,7 +259,7 @@ for (const test of tests) {
     continue;
   }
 
-  const result = spawnSync(process.execPath, [tsxCli, test.file], {
+  const result = spawnSync(process.execPath, tsxArgs(test.file), {
     cwd: projectRoot,
     env: process.env,
     stdio: "inherit",

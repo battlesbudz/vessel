@@ -2263,6 +2263,7 @@ You can extend yourself by building new tools directly. Generate the complete Ty
           "test_tool",
           "queue_background_job",
           "start_project",
+          "manage_project",
           "spawn_subagent",
           "jarvis_self_diagnose",
           "list_source_files",

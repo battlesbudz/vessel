@@ -8,7 +8,7 @@
  */
 
 import { db } from "../db";
-import { eq, asc, desc, inArray } from "drizzle-orm";
+import { and, eq, asc, desc, inArray, sql } from "drizzle-orm";
 import * as schema from "@shared/schema";
 import type { ProjectPlanStep } from "@shared/schema";
 import { runAgent } from "./harness";
@@ -699,7 +699,11 @@ export async function getProjectStatus(projectId: string): Promise<{
   return { project, sessions, plan, completedCount, totalCount: plan.length, nextStep };
 }
 
-export async function getUserProjects(userId: string): Promise<(schema.JarvisProject & { lastSessionSummary: string | null })[]> {
+export async function getUserProjects(userId: string): Promise<(schema.JarvisProject & {
+  lastSessionSummary: string | null;
+  activeJobStatus: string | null;
+  activeJobError: string | null;
+})[]> {
   const projects = await db
     .select()
     .from(schema.jarvisProjects)
@@ -718,6 +722,19 @@ export async function getUserProjects(userId: string): Promise<(schema.JarvisPro
     .from(schema.jarvisProjectSessions)
     .where(inArray(schema.jarvisProjectSessions.projectId, projectIds))
     .orderBy(desc(schema.jarvisProjectSessions.sessionNumber));
+  const activeJobs = await db
+    .select({
+      projectId: sql<string>`${schema.agentJobs.input}->>'projectId'`,
+      status: schema.agentJobs.status,
+      error: schema.agentJobs.error,
+      createdAt: schema.agentJobs.createdAt,
+    })
+    .from(schema.agentJobs)
+    .where(and(
+      eq(schema.agentJobs.userId, userId),
+      inArray(schema.agentJobs.status, ["queued", "running", "needs_attention", "resource_paused"]),
+    ))
+    .orderBy(desc(schema.agentJobs.createdAt));
 
   const latestSummaryByProject = new Map<string, string | null>();
   for (const session of recentSessions) {
@@ -725,10 +742,18 @@ export async function getUserProjects(userId: string): Promise<(schema.JarvisPro
       latestSummaryByProject.set(session.projectId, session.summary);
     }
   }
+  const activeJobByProject = new Map<string, { status: string; error: string | null }>();
+  for (const job of activeJobs) {
+    if (job.projectId && projectIds.includes(job.projectId) && !activeJobByProject.has(job.projectId)) {
+      activeJobByProject.set(job.projectId, { status: job.status, error: job.error });
+    }
+  }
 
   return projects.map((p) => ({
     ...p,
     lastSessionSummary: latestSummaryByProject.get(p.id) ?? null,
+    activeJobStatus: activeJobByProject.get(p.id)?.status ?? null,
+    activeJobError: activeJobByProject.get(p.id)?.error ?? null,
   }));
 }
 

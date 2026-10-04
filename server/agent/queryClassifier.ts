@@ -112,6 +112,15 @@ export function classifyBuildIntent(text: string): boolean {
   return BUILD_PATTERNS.some((re) => re.test(text));
 }
 
+export function classifyStandaloneAppProjectIntent(text: string): boolean {
+  if (!text || text.trim().length === 0) return false;
+  return (
+    /\b(?:build|create|make|start|develop)\b[\s\S]{0,100}\b(?:android|mobile|iphone|ios|web)\s+app\b/i.test(text) ||
+    /\b(?:build|create|make|start|develop)\b[\s\S]{0,100}\b(?:standalone\s+)?(?:calculator|weather|notes?|todo|to-do)\s+app\b/i.test(text) ||
+    /\b(?:build|create|make|start|develop)\b[\s\S]{0,100}\bgame\b(?!\s+plan)/i.test(text)
+  );
+}
+
 /**
  * Returns true when the user's message is clearly unrelated to building a tool
  * (e.g. email, calendar, tasks, reminders).

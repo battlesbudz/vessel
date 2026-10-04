@@ -1,5 +1,5 @@
 export type CreateProjectKind = "general" | "app";
-export type CreateProjectFramework = "nextjs" | "react-vite" | "node-express" | "custom";
+export type CreateProjectFramework = "nextjs" | "react-vite" | "node-express" | "android-kotlin" | "custom";
 
 export interface NormalizedCreateProjectRequest {
   title: string;
@@ -20,6 +20,7 @@ function normalizeFramework(value: unknown): CreateProjectFramework {
   const raw = cleanString(value).toLowerCase();
   if (raw === "react-vite") return "react-vite";
   if (raw === "node-express") return "node-express";
+  if (raw === "android-kotlin" || raw === "android" || raw === "kotlin" || raw === "jetpack-compose") return "android-kotlin";
   if (raw === "custom") return "custom";
   return "nextjs";
 }

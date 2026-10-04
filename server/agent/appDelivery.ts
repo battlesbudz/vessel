@@ -9,7 +9,7 @@
 
 import * as fs from "fs";
 import * as path from "path";
-import { execSync, spawnSync } from "child_process";
+import { execSync, spawn, spawnSync } from "child_process";
 import * as os from "os";
 import * as zlib from "zlib";
 import { db } from "../db";
@@ -133,7 +133,7 @@ function createZipArchive(sourceDir: string, zipPath: string): void {
 
   const walk = (dir: string) => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      if (entry.name === ".git" || entry.name === "node_modules") continue;
+      if (entry.name === ".git" || entry.name === "node_modules" || entry.name === ".gradle" || entry.name === "build") continue;
       if (entry.name.endsWith(".log")) continue;
 
       const fullPath = path.join(dir, entry.name);
@@ -258,11 +258,110 @@ export function cleanupExpiredZips(): void {
   }
 }
 
+function validateAndroidProjectStructure(workspaceDir: string): string[] {
+  const errors: string[] = [];
+  const requireAny = (label: string, candidates: string[]) => {
+    if (!candidates.some((candidate) => fs.existsSync(path.join(workspaceDir, candidate)))) {
+      errors.push(`Missing ${label}`);
+    }
+  };
+  requireAny("Android settings.gradle(.kts)", ["settings.gradle.kts", "settings.gradle"]);
+  requireAny("Android root build.gradle(.kts)", ["build.gradle.kts", "build.gradle"]);
+  requireAny("Android app/build.gradle(.kts)", ["app/build.gradle.kts", "app/build.gradle"]);
+  requireAny("Gradle wrapper", ["gradlew", "gradlew.bat"]);
+  if (!fs.existsSync(path.join(workspaceDir, "app/src/main/AndroidManifest.xml"))) {
+    errors.push("Missing app/src/main/AndroidManifest.xml");
+  }
+  const sourceRoot = path.join(workspaceDir, "app/src/main");
+  let hasSource = false;
+  const pending = fs.existsSync(sourceRoot) ? [sourceRoot] : [];
+  while (pending.length > 0 && !hasSource) {
+    const current = pending.pop()!;
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const fullPath = path.join(current, entry.name);
+      if (entry.isDirectory()) pending.push(fullPath);
+      else if (/\.(?:kt|java)$/i.test(entry.name)) {
+        hasSource = true;
+        break;
+      }
+    }
+  }
+  if (!hasSource) errors.push("Missing Android Kotlin/Java application source");
+  return errors;
+}
+
 /**
  * Run a production build for the given framework before packaging.
  * Logs a warning and continues if the build fails (zip is still created).
  */
-function runProductionBuild(workspaceDir: string, framework: string): void {
+async function runProductionBuild(workspaceDir: string, framework: string, signal?: AbortSignal): Promise<void> {
+  if (framework === "android-kotlin") {
+    const structuralErrors = validateAndroidProjectStructure(workspaceDir);
+    if (structuralErrors.length > 0) {
+      throw new Error(`Android source validation failed: ${structuralErrors.join("; ")}`);
+    }
+    const sdkRoot = process.env.ANDROID_HOME?.trim() || process.env.ANDROID_SDK_ROOT?.trim();
+    if (!sdkRoot || !fs.existsSync(sdkRoot)) {
+      console.log("[AppDelivery] Android SDK unavailable; packaging structurally validated Android source project");
+      return;
+    }
+    if (signal?.aborted) {
+      const error = new Error("Android delivery build aborted");
+      error.name = "AbortError";
+      throw error;
+    }
+    const gradle = process.platform === "win32" ? "gradlew.bat" : "./gradlew";
+    const result = await new Promise<{ status: number | null; stdout: string; stderr: string }>((resolve, reject) => {
+      const child = spawn(gradle, ["--no-daemon", "testDebugUnitTest", "assembleDebug"], {
+        cwd: workspaceDir,
+        env: { ...process.env, ANDROID_HOME: sdkRoot, ANDROID_SDK_ROOT: sdkRoot },
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      let stdout = "";
+      let stderr = "";
+      let settled = false;
+      const keepTail = (current: string, chunk: Buffer | string) => `${current}${chunk.toString()}`.slice(-4000);
+      const cleanup = () => {
+        clearTimeout(timeout);
+        signal?.removeEventListener("abort", onAbort);
+      };
+      const fail = (error: Error) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(error);
+      };
+      const onAbort = () => {
+        child.kill("SIGTERM");
+        const error = new Error("Android delivery build aborted");
+        error.name = "AbortError";
+        fail(error);
+      };
+      const timeout = setTimeout(() => {
+        child.kill("SIGTERM");
+        fail(new Error("Android delivery build timed out after 15 minutes"));
+      }, 15 * 60 * 1000);
+
+      signal?.addEventListener("abort", onAbort, { once: true });
+      child.stdout?.on("data", (chunk) => { stdout = keepTail(stdout, chunk); });
+      child.stderr?.on("data", (chunk) => { stderr = keepTail(stderr, chunk); });
+      child.once("error", fail);
+      child.once("close", (status) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve({ status, stdout, stderr });
+      });
+    });
+    if (result.status !== 0) {
+      throw new Error(`Android production build failed: ${`${result.stdout}\n${result.stderr}`.trim().slice(-2000)}`);
+    }
+    const generatedApk = path.join(workspaceDir, "app/build/outputs/apk/debug/app-debug.apk");
+    if (!fs.existsSync(generatedApk)) throw new Error("Android build completed without producing app-debug.apk");
+    fs.copyFileSync(generatedApk, path.join(workspaceDir, "calculator-debug.apk"));
+    return;
+  }
+
   const packageJson = path.join(workspaceDir, "package.json");
   const nodeModules = path.join(workspaceDir, "node_modules");
   if (fs.existsSync(packageJson) && !fs.existsSync(nodeModules)) {
@@ -316,6 +415,7 @@ function runProductionBuild(workspaceDir: string, framework: string): void {
 
 export async function ensureProjectArchiveAvailable(
   projectId: string,
+  signal?: AbortSignal,
 ): Promise<{ zipSizeMb: number; fileCount: number; framework: string }> {
   const [project] = await db
     .select()
@@ -339,7 +439,7 @@ export async function ensureProjectArchiveAvailable(
 
   const framework = project.appFramework ?? "custom";
 
-  runProductionBuild(workspaceDir, framework);
+  await runProductionBuild(workspaceDir, framework, signal);
 
   ensureDownloadsDir();
 
@@ -375,6 +475,7 @@ export async function packageAndDeliverApp(
   projectId: string,
   userId: string,
   originChannel?: string,
+  signal?: AbortSignal,
 ): Promise<{ downloadUrl: string; zipSizeMb: number }> {
   const [project] = await db
     .select()
@@ -384,7 +485,7 @@ export async function packageAndDeliverApp(
 
   if (!project) throw new Error(`Project ${projectId} not found`);
 
-  const { zipSizeMb, fileCount, framework } = await ensureProjectArchiveAvailable(projectId);
+  const { zipSizeMb, fileCount, framework } = await ensureProjectArchiveAvailable(projectId, signal);
 
   // Generate a signed, time-limited download token so the link works from
   // Telegram/Discord without requiring bearer auth headers.
@@ -426,11 +527,18 @@ export async function packageAndDeliverApp(
     deployOffer = `\n\n🚀 **Want a live URL?** Say "deploy my app" and Jarvis will publish it to ${provider}.`;
   }
 
+  const restoreNote = framework === "android-kotlin"
+    ? "Open the project in Android Studio or run `./gradlew testDebugUnitTest assembleDebug`. If this worker had an Android SDK, `calculator-debug.apk` is included."
+    : "The zip excludes node_modules — run `npm install` to restore dependencies.";
+  const launchNote = fs.existsSync(path.join(project.workspaceDir ?? "", "jarvis-app.json"))
+    ? `▶️ Open the Projects tab and tap **Open in Jarvis** to run the installed mini-app.\n\n`
+    : "";
   const notificationText =
     `✅ **${project.title}** is complete!\n\n` +
+    launchNote +
     `📦 Download your app: ${downloadUrl}\n` +
     `*(Link expires in 7 days)*\n\n` +
-    `The zip excludes node_modules — run \`npm install\` to restore dependencies.\n\n` +
+    `${restoreNote}\n\n` +
     `Tech stack: ${framework} · ${fileCount} files · ${zipSizeMb} MB` +
     githubNote +
     deployOffer;
@@ -460,4 +568,3 @@ async function sendDeliveryNotification(
     console.warn(`[AppDelivery] failed to send notification to channel=${effectiveChannel}`);
   }
 }
-

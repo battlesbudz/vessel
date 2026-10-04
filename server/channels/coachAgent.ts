@@ -21,7 +21,7 @@ import { getModel, MODEL_DEFAULTS } from "../lib/modelPrefs";
 import { contextRegistry } from "../agent/contextRegistry";
 import { buildBudgetedContextBlock, BUDGET_PRESETS, truncateToBudget } from "../memory/contextBuilder";
 import { processLivingContextUpdate } from "../workspace/livingContextRouter";
-import { classifyBuildIntent, classifyBuildFollowUp, classifyToolAwareRoute, isUnrelatedIntent, hasActiveBuildSession, classifyBuildResume, findBuildDescription, BUILD_ACK_MARKER, findSuspendedBuild, SUSPENDED_BUILD_REMINDED_MARKER, type StoredBuildSession } from "../agent/queryClassifier";
+import { classifyBuildIntent, classifyBuildFollowUp, classifyStandaloneAppProjectIntent, classifyToolAwareRoute, isUnrelatedIntent, hasActiveBuildSession, classifyBuildResume, findBuildDescription, BUILD_ACK_MARKER, findSuspendedBuild, SUSPENDED_BUILD_REMINDED_MARKER, type StoredBuildSession } from "../agent/queryClassifier";
 import { routeBuildIntent } from "../agent/buildIntentRouter";
 import { routeAutonomyRequest } from "../agent/autonomyRuntime";
 import { buildBackgroundJobPrompt } from "../agent/backgroundJobHandoff";
@@ -871,7 +871,7 @@ If you skip step 1 (calling discord_request_confirm), the action tool will be re
   // This bypasses the orchestrator entirely and returns an immediate ack so
   // the user knows the build is queued.  Duplicate detection is handled inside
   // submitAgentJob so the same request cannot spawn multiple parallel jobs.
-  if (userText && (classifyBuildIntent(userText) || classifyBuildFollowUp(userText, chatMessages))) {
+  if (userText && !classifyStandaloneAppProjectIntent(userText) && (classifyBuildIntent(userText) || classifyBuildFollowUp(userText, chatMessages))) {
     try {
       const buildResult = await routeBuildIntent({
         userId,

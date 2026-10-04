@@ -12,6 +12,7 @@ import {
   classifyBuildResume,
   findBuildDescription,
   classifyQueryIntent,
+  classifyStandaloneAppProjectIntent,
   BUILD_ACK_MARKER,
 } from "../queryClassifier";
 
@@ -46,6 +47,27 @@ function historyWithoutAck(): Array<{ role: string; content: string }> {
     { role: "user", content: "Summarise my emails." },
   ];
 }
+
+assert(
+  classifyStandaloneAppProjectIntent("Build me a small Android calculator app"),
+  "APP-1: Android calculator creation is a standalone app project",
+);
+assert(
+  classifyStandaloneAppProjectIntent("Create a web app for tracking workouts"),
+  "APP-2: web app creation is a standalone app project",
+);
+assert(
+  classifyStandaloneAppProjectIntent("Build me a small Pong game I can play against Jarvis"),
+  "APP-3: interactive game creation is a standalone app project",
+);
+assert(
+  !classifyStandaloneAppProjectIntent("fix your calendar routing code"),
+  "APP-4: Jarvis self-edit is not a standalone app project",
+);
+assert(
+  !classifyStandaloneAppProjectIntent("build a game plan for launch"),
+  "APP-5: a game plan is not an app project",
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // classifyBuildIntent — positives

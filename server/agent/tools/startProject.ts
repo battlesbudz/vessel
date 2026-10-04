@@ -1,7 +1,7 @@
 import type { AgentTool } from "../types";
 
 type ProjectKind = "general" | "app";
-type AppFramework = "nextjs" | "react-vite" | "node-express" | "custom";
+type AppFramework = "nextjs" | "react-vite" | "node-express" | "android-kotlin" | "custom";
 
 function cleanString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -18,6 +18,7 @@ function normalizeFramework(value: unknown): AppFramework {
   const raw = cleanString(value).toLowerCase();
   if (raw === "react-vite") return "react-vite";
   if (raw === "node-express") return "node-express";
+  if (raw === "android-kotlin" || raw === "android" || raw === "kotlin" || raw === "jetpack-compose") return "android-kotlin";
   if (raw === "custom") return "custom";
   return "nextjs";
 }
@@ -25,7 +26,7 @@ function normalizeFramework(value: unknown): AppFramework {
 export const startProjectTool: AgentTool = {
   name: "start_project",
   description:
-    "Create a persistent Jarvis project and queue its planning session. Use this when the user asks to start, create, open, or set up a project. For websites, landing pages, dashboards, tools, or standalone apps, set project_kind='app' so Jarvis builds it in an isolated workspace. If the user only gives a title, use that as the initial goal instead of saying there is no project tool.",
+    "Create a persistent Jarvis project and queue its complete build. Use this for standalone apps, games, websites, and installable Jarvis mini-apps, not build_feature (which changes Jarvis itself). For an Android app, set project_kind='app' and framework='android-kotlin'. For interactive games such as Pong, use a web framework so the finished app can launch inside Jarvis and use the permissioned agent bridge. Calculator requests produce a complete native Kotlin/Jetpack Compose project plus an embedded Jarvis version immediately. If the user only gives a title, use it as the goal instead of claiming no project tool exists.",
   parameters: {
     type: "object",
     properties: {
@@ -49,8 +50,8 @@ export const startProjectTool: AgentTool = {
       },
       framework: {
         type: "string",
-        enum: ["nextjs", "react-vite", "node-express", "custom"],
-        description: "Framework for app projects. Defaults to nextjs.",
+        enum: ["nextjs", "react-vite", "node-express", "android-kotlin", "custom"],
+        description: "Framework for app projects. Use android-kotlin for native Android apps. Defaults to nextjs.",
       },
       autonomous_mode: {
         type: "boolean",

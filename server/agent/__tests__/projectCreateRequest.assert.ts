@@ -29,6 +29,17 @@ assert.deepEqual(inferredAppRequest.errors, []);
 assert.equal(inferredAppRequest.projectKind, "app");
 assert.equal(inferredAppRequest.autonomousMode, true);
 
+const androidRequest = normalizeCreateProjectRequest({
+  title: "Calculator",
+  goal: "Build a complete native Android calculator",
+  framework: "android-kotlin",
+});
+
+assert.deepEqual(androidRequest.errors, []);
+assert.equal(androidRequest.projectKind, "app");
+assert.equal(androidRequest.framework, "android-kotlin");
+assert.equal(androidRequest.autonomousMode, true);
+
 const generalRequest = normalizeCreateProjectRequest({
   title: "Licensing plan",
   goal: "Organize the licensing work",

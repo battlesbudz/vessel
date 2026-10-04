@@ -22,6 +22,13 @@ import { hydrateProjectWorkspace, listProjectSnapshot, readProjectArchive, readP
 import * as fs from "fs";
 import * as path from "path";
 import { RESOURCE_PAUSED_STATUS } from "./agent/voiceRuntimeResourceCore";
+import {
+  createProjectAppLaunchToken,
+  loadProjectApp,
+  renderProjectAppShell,
+  runProjectAppAgentTurn,
+  verifyProjectAppLaunchToken,
+} from "./projectAppRuntime";
 
 const _p = (v: string | string[]): string => Array.isArray(v) ? (v[0] ?? "") : v;
 
@@ -102,7 +109,8 @@ export function registerProjectRoutes(app: Express): void {
       if (!project) return res.status(404).json({ error: "Project not found" });
       if (!project.workspaceDir || !fs.existsSync(project.workspaceDir)) {
         const files = await listProjectSnapshot(id);
-        return res.json({ workspaceDir: project.workspaceDir ?? null, files });
+        const launchable = files.some((file) => file.type === "file" && file.path === "jarvis-app.json");
+        return res.json({ workspaceDir: project.workspaceDir ?? null, files, launchable });
       }
 
       await hydrateProjectWorkspace(id, project.workspaceDir).catch(() => undefined);
@@ -128,7 +136,8 @@ export function registerProjectRoutes(app: Express): void {
         }
       };
       walk(root, 0);
-      res.json({ workspaceDir: root, files });
+      const launchable = files.some((file) => file.type === "file" && file.path === "jarvis-app.json");
+      res.json({ workspaceDir: root, files, launchable });
     } catch (err) {
       console.error("[ProjectRoutes] GET /api/projects/:id/files failed:", err);
       res.status(500).json({ error: "Failed to list project files" });
@@ -200,6 +209,50 @@ export function registerProjectRoutes(app: Express): void {
     } catch (err) {
       console.error("[ProjectRoutes] GET /api/projects/:id/download-url failed:", err);
       res.status(500).json({ error: "Failed to create download link" });
+    }
+  });
+
+  app.get("/api/projects/:id/launch-url", authMiddleware, async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).userId as string;
+      const id = _p(req.params.id);
+      await loadProjectApp(id, userId);
+      const token = createProjectAppLaunchToken(id, userId);
+      res.json({ launchUrl: `${getPublicBaseUrl(req)}/api/project-apps/${id}?token=${encodeURIComponent(token)}` });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Jarvis app is unavailable";
+      res.status(message === "Project not found" ? 404 : 409).json({ error: message });
+    }
+  });
+
+  app.get("/api/project-apps/:id", async (req: Request, res: Response) => {
+    try {
+      const id = _p(req.params.id);
+      const token = typeof req.query.token === "string" ? req.query.token : "";
+      const claims = verifyProjectAppLaunchToken(token, id);
+      if (!claims) return res.status(401).send("Launch link is invalid or expired");
+      const { manifest, html } = await loadProjectApp(id, claims.userId);
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.setHeader("Cache-Control", "no-store");
+      res.setHeader("Content-Security-Policy", "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; frame-src 'self'; connect-src 'self'; img-src data: blob:; font-src data:");
+      res.send(renderProjectAppShell(id, manifest, html, token));
+    } catch (err) {
+      res.status(404).send(err instanceof Error ? err.message : "Jarvis app is unavailable");
+    }
+  });
+
+  app.post("/api/project-apps/:id/agent-turn", async (req: Request, res: Response) => {
+    try {
+      const id = _p(req.params.id);
+      const authorization = req.header("authorization") ?? "";
+      const token = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
+      const claims = verifyProjectAppLaunchToken(token, id);
+      if (!claims) return res.status(401).json({ error: "Launch credential is invalid or expired" });
+      const result = await runProjectAppAgentTurn(id, claims.userId, req.body?.input);
+      res.json({ result });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Agent turn failed";
+      res.status(/limit reached/.test(message) ? 429 : 400).json({ error: message });
     }
   });
 

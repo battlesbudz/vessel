@@ -1,0 +1,40 @@
+name: Android project builder
+
+on:
+  pull_request:
+    paths:
+      - 'server/agent/androidCalculatorProject.ts'
+      - 'server/agent/appProjectRunner.ts'
+      - 'scripts/generate-android-calculator-fixture.ts'
+      - '.github/workflows/android-project-builder.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'server/agent/androidCalculatorProject.ts'
+      - 'server/agent/appProjectRunner.ts'
+      - 'scripts/generate-android-calculator-fixture.ts'
+      - '.github/workflows/android-project-builder.yml'
+
+jobs:
+  build-generated-calculator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - run: npm ci
+      - name: Generate complete Android calculator project
+        run: npx tsx scripts/generate-android-calculator-fixture.ts "$RUNNER_TEMP/jarvis-calculator"
+      - name: Run unit tests and build APK
+        working-directory: ${{ runner.temp }}/jarvis-calculator
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon testDebugUnitTest assembleDebug
+          test -s app/build/outputs/apk/debug/app-debug.apk
